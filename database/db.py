@@ -120,7 +120,7 @@ def verify_code(form_id: int, verified: bool):
         UPDATE user_forms
         SET code_verified = ?
         WHERE id = ?
-    """, (1 if verified else -1, form_id))
+    """, (1 if verified else 0, form_id))
     
     conn.commit()
     conn.close()
