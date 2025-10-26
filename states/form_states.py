@@ -7,3 +7,4 @@ class Form(StatesGroup):
     phone = State()
     email = State()
     document_photo = State()
+    waiting_code = State()  # Новое состояние для ожидания кода от пользователя
