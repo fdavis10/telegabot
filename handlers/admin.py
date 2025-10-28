@@ -1,4 +1,5 @@
 from aiogram import Router, types, F
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from database.db import add_admin, is_admin
@@ -9,17 +10,20 @@ router = Router()
 class AdminAuth(StatesGroup):
     waiting_password = State()
 
-@router.message(lambda message: message.text == "/apanel")
+@router.message(Command("apanel"))
 async def admin_panel_command(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     
     # Проверяем, авторизован ли уже пользователь
     if is_admin(user_id):
         await message.answer(
-            "✅ Вы уже авторизованы как администратор..\n\n"
+            "✅ Вы уже авторизованы как администратор.\n\n"
             "Вам будут приходить уведомления о новых анкетах и о кодах, которые ввел пользователь."
         )
         return
+    
+    # Очищаем любое текущее состояние формы
+    await state.clear()
     
     # Запрашиваем пароль
     await state.set_state(AdminAuth.waiting_password)

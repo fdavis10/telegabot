@@ -4,7 +4,7 @@ services:
   telegram-bot:
     build: .
     container_name: telegram_bot
-    restart: unless-stopped
+    restart: always  # Изменено с unless-stopped на always для автоматического перезапуска
     env_file:
       - .env
     volumes:
@@ -12,3 +12,10 @@ services:
       - ./assets:/app/assets
     environment:
       - PYTHONUNBUFFERED=1
+    # Настройки здоровья контейнера (опционально)
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep '[p]ython main.py' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
