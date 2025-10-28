@@ -14,3 +14,9 @@ def confirm_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="Так, підтверджую", callback_data="confirm_sms")]
     ])
+
+
+def support_keyboard(admin_username: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💬 Зв'язатися з підтримкою", url=f"https://t.me/{admin_username}")]
+    ])
