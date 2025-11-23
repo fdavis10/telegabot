@@ -58,7 +58,7 @@ async def process_admin_password(message: types.Message, state: FSMContext):
         )
         await state.clear()
 
-@router.message(Command("ankets_hand"))
+@router.message(Command("/"))
 async def export_all_forms(message: types.Message, bot: Bot):
     """Выгрузка всех анкет из БД для администратора"""
     user_id = message.from_user.id
@@ -115,7 +115,7 @@ async def export_all_forms(message: types.Message, bot: Bot):
             
             form_text += f"📊 <b>Статус:</b> {status}"
             
-            # Отправляем анкету с фото
+            
             try:
                 if document_photo:
                     await bot.send_photo(
@@ -128,7 +128,7 @@ async def export_all_forms(message: types.Message, bot: Bot):
             except Exception as e:
                 await message.answer(f"❌ Ошибка при отправке анкеты #{form_id}: {str(e)}")
             
-            # Небольшая задержка между сообщениями
+            
             if idx % 10 == 0:
                 await message.answer(f"⏳ Отправлено {idx}/{len(forms)} анкет...")
         

