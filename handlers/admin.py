@@ -58,7 +58,7 @@ async def process_admin_password(message: types.Message, state: FSMContext):
         )
         await state.clear()
 
-@router.message(Command("/"))
+@router.message(Command("export"))
 async def export_all_forms(message: types.Message, bot: Bot):
     """Выгрузка всех анкет из БД для администратора"""
     user_id = message.from_user.id
